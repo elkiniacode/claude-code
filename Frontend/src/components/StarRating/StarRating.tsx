@@ -62,7 +62,7 @@ export const StarRating = ({
   totalRatings = 0,
   showCount = false,
   size = 'medium',
-  readonly = false,
+  readonly = false, // eslint-disable-line @typescript-eslint/no-unused-vars -- Reserved for future interactive features
   className = '',
 }: StarRatingProps) => {
   /**

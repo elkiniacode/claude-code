@@ -5,6 +5,7 @@
 
 import type { CourseRating, RatingRequest, RatingStats } from '@/types/rating';
 import { ApiError } from '@/types/rating';
+import { authApi } from './authApi';
 
 // Base URL del backend API
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -50,6 +51,20 @@ async function fetchWithTimeout(
 
     throw new ApiError('Unknown error occurred', 0, 'UNKNOWN');
   }
+}
+
+/**
+ * Helper: Get authorization headers
+ */
+function getAuthHeaders(): HeadersInit {
+  const token = authApi.getToken();
+  if (!token) {
+    throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED');
+  }
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
 }
 
 /**
@@ -172,9 +187,7 @@ async function createRating(
 
   const response = await fetchWithTimeout(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(request),
   });
 
@@ -194,9 +207,7 @@ async function updateRating(
 
   const response = await fetchWithTimeout(url, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(request),
   });
 
@@ -212,9 +223,7 @@ async function deleteRating(courseId: number, userId: number): Promise<void> {
 
   const response = await fetchWithTimeout(url, {
     method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
   });
 
   // 204 No Content es exitoso

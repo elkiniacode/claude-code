@@ -1,3 +1,10 @@
+// Teacher types
+export interface Teacher {
+  id: number;
+  name: string;
+  email: string;
+}
+
 // Course types
 export interface Course {
   id: number;
@@ -13,17 +20,20 @@ export interface Course {
 // Class types
 export interface Class {
   id: number;
-  title: string;
+  name: string; // Backend uses 'name' not 'title'
   description: string;
   video: string;
-  duration: number;
+  duration?: number; // Optional - may be null/undefined
   slug: string;
+  course_id?: number; // Course FK
+  course_slug?: string; // Course slug for navigation
 }
 
 // Course Detail type
 export interface CourseDetail extends Course {
   description: string;
   classes: Class[];
+  teachers?: Teacher[]; // Teachers associated with the course
 }
 
 // Progress types

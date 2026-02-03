@@ -1,4 +1,4 @@
-.PHONY: start stop restart build logs clean migrate create-migration seed seed-fresh help
+.PHONY: start stop restart build logs clean migrate create-migration seed seed-fresh test shell help
 
 # Comando principal para iniciar el entorno de desarrollo
 start:
@@ -42,6 +42,14 @@ seed-fresh:
 	docker-compose exec api bash -c "cd /app && uv run python -m app.db.seed clear"
 	docker-compose exec api bash -c "cd /app && uv run python -m app.db.seed"
 
+# Ejecutar tests dentro del contenedor
+test:
+	docker-compose exec api bash -c "cd /app && uv run pytest app/tests/"
+
+# Abrir shell dentro del contenedor
+shell:
+	docker-compose exec api bash
+
 # Mostrar ayuda
 help:
 	@echo "Comandos disponibles:"
@@ -55,6 +63,8 @@ help:
 	@echo "  make create-migration  - Crear una nueva migración"
 	@echo "  make seed              - Ejecutar seed de datos"
 	@echo "  make seed-fresh        - Limpiar y recrear datos de seed"
+	@echo "  make test              - Ejecutar tests dentro del contenedor"
+	@echo "  make shell             - Abrir shell dentro del contenedor"
 	@echo "  make help              - Mostrar esta ayuda"
 
 # Comando por defecto

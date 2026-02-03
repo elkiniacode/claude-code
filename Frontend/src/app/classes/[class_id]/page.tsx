@@ -17,14 +17,17 @@ export default async function ClassPage({ params }: ClassPageProps) {
   const { class_id } = await params;
   const classData = await getClassData(class_id);
 
-  // Asumimos que classData tiene un campo 'slug' para el curso, si no, ajustar aquí
-  // Si no hay relación directa, el botón puede regresar a /course
+  // Generate back link to course if we have the course_slug
+  const backLink = classData.course_slug
+    ? `/course/${classData.course_slug}`
+    : '/';
+
   return (
     <main className={styles.container}>
-      <VideoPlayer src={classData.video} title={classData.title} />
-      <h1 className={styles.title}>{classData.title}</h1>
+      <VideoPlayer src={classData.video} title={classData.name} />
+      <h1 className={styles.title}>{classData.name}</h1>
       <p className={styles.description}>{classData.description}</p>
-      <Link href="/course" className={styles.backButton}>
+      <Link href={backLink} className={styles.backButton}>
         ← Regresar al curso
       </Link>
     </main>

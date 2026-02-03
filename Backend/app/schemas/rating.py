@@ -10,15 +10,11 @@ class RatingRequest(BaseModel):
     """
     Schema for creating or updating a course rating.
 
+    Note: user_id is extracted from authentication token, not from request body.
+
     Validation:
-    - user_id must be positive integer
     - rating must be between 1 and 5 (inclusive)
     """
-    user_id: int = Field(
-        ...,
-        gt=0,
-        description="ID of the user submitting the rating"
-    )
     rating: int = Field(
         ...,
         ge=1,

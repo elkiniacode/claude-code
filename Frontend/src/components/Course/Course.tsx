@@ -5,7 +5,7 @@ import { StarRating } from "@/components/StarRating/StarRating";
 type CourseProps = Omit<CourseType, "slug">;
 
 export const Course = ({
-  id,
+  id, // eslint-disable-line @typescript-eslint/no-unused-vars -- Required by CourseProps interface
   name,
   description,
   thumbnail,

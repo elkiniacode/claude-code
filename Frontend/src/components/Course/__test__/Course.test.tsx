@@ -6,31 +6,46 @@ import { Course } from "../Course";
 describe("Course Component", () => {
   const mockCourse = {
     id: 1,
-    title: "React Fundamentals",
-    teacher: "John Doe",
-    duration: 120,
+    name: "React Fundamentals",
+    description: "Learn the fundamentals of React framework",
     thumbnail: "https://example.com/thumbnail.jpg",
+    average_rating: 4.5,
+    total_ratings: 10,
   };
 
   it("renders course information correctly", () => {
     render(<Course {...mockCourse} />);
 
-    // Check if title is rendered
-    expect(screen.getByText(mockCourse.title)).toBeDefined();
+    // Check if name is rendered
+    expect(screen.getByText(mockCourse.name)).toBeDefined();
 
-    // Check if teacher information is rendered
-    expect(screen.getByText(`Profesor: ${mockCourse.teacher}`)).toBeDefined();
-
-    // Check if duration is rendered
-    expect(screen.getByText(`Duración: ${mockCourse.duration} minutos`)).toBeDefined();
+    // Check if description is rendered
+    expect(screen.getByText(mockCourse.description)).toBeDefined();
   });
 
   it("renders thumbnail with correct alt text", () => {
     render(<Course {...mockCourse} />);
 
-    const thumbnail = screen.getByRole("img");
+    const thumbnail = screen.getByAltText(mockCourse.name);
     expect(thumbnail).toHaveAttribute("src", mockCourse.thumbnail);
-    expect(thumbnail).toHaveAttribute("alt", mockCourse.title);
+    expect(thumbnail).toHaveAttribute("alt", mockCourse.name);
+  });
+
+  it("renders rating when available", () => {
+    render(<Course {...mockCourse} />);
+
+    // Check if rating section is rendered
+    const ratingContainer = screen.getByText(/\(\d+\)/); // Matches rating count like "(10)"
+    expect(ratingContainer).toBeDefined();
+  });
+
+  it("does not render rating when not available", () => {
+    const courseWithoutRating = { ...mockCourse, average_rating: undefined, total_ratings: undefined };
+    const { container } = render(<Course {...courseWithoutRating} />);
+
+    // Rating container should not exist
+    const ratingContainer = container.querySelector('[class*="ratingContainer"]');
+    expect(ratingContainer).toBeNull();
   });
 
   it("renders with correct structure", () => {

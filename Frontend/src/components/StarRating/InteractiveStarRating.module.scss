@@ -1,0 +1,108 @@
+/**
+ * InteractiveStarRating Component Styles
+ * Estilos para el componente de estrellas interactivas
+ */
+
+.interactiveStarRating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  .stars {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .star {
+    display: inline-flex;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.2s ease, color 0.2s ease;
+    color: #e0e0e0; // Gris claro para estrellas vacías
+
+    &:hover:not(:disabled) {
+      transform: scale(1.1);
+    }
+
+    &:focus {
+      outline: 2px solid #ff2d2d;
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    &.filled {
+      color: #ffc107; // Amarillo/dorado para estrellas llenas
+    }
+
+    &.empty {
+      color: #e0e0e0;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  .ratingText {
+    font-size: 0.875rem;
+    color: #666;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  // Estado deshabilitado
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+
+    .star {
+      cursor: not-allowed;
+
+      &:hover {
+        transform: none;
+      }
+    }
+  }
+
+  // Size variants
+  &.small {
+    .star svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .ratingText {
+      font-size: 0.75rem;
+    }
+  }
+
+  &.medium {
+    .star svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .ratingText {
+      font-size: 0.875rem;
+    }
+  }
+
+  &.large {
+    .star svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    .ratingText {
+      font-size: 1rem;
+    }
+  }
+}

@@ -1,15 +1,25 @@
 from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.config import settings
 from app.db.base import engine, get_db
 from app.services.course_service import CourseService
+from app.services.auth_service import AuthService
+from app.core.auth import get_current_user, get_current_active_user
+from app.models.user import User
 from app.schemas.rating import (
     RatingRequest,
     RatingResponse,
     RatingStatsResponse,
     ErrorResponse
+)
+from app.schemas.auth import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    Token
 )
 
 app = FastAPI(
@@ -34,6 +44,10 @@ app = FastAPI(
     """,
     openapi_tags=[
         {
+            "name": "authentication",
+            "description": "User authentication and registration"
+        },
+        {
             "name": "courses",
             "description": "Operations with courses"
         },
@@ -48,12 +62,31 @@ app = FastAPI(
     ]
 )
 
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Frontend dev server
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 
 def get_course_service(db: Session = Depends(get_db)) -> CourseService:
     """
     Dependency to get CourseService instance
     """
     return CourseService(db)
+
+
+def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+    """
+    Dependency to get AuthService instance
+    """
+    return AuthService(db)
 
 
 @app.get("/")
@@ -93,6 +126,139 @@ def health() -> dict[str, str | bool | int]:
         health_status["database_error"] = str(e)
 
     return health_status
+
+
+# ============================================
+# Authentication Endpoints
+# ============================================
+
+
+@app.post(
+    "/auth/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["authentication"],
+    responses={
+        201: {"description": "User registered successfully"},
+        400: {"model": ErrorResponse, "description": "Email already registered"}
+    }
+)
+def register(
+    user_data: UserCreate,
+    auth_service: AuthService = Depends(get_auth_service)
+) -> UserResponse:
+    """
+    Register a new user.
+
+    Request Body:
+    - email: Valid email address
+    - password: Password (min 8 characters)
+    - full_name: User's full name
+
+    Returns:
+    - User object (without password)
+
+    Example:
+        POST /auth/register
+        {
+            "email": "user@example.com",
+            "password": "securepassword123",
+            "full_name": "John Doe"
+        }
+    """
+    user = auth_service.register_user(user_data)
+    return UserResponse.model_validate(user)
+
+
+@app.post(
+    "/auth/login",
+    response_model=Token,
+    tags=["authentication"],
+    responses={
+        200: {"description": "Login successful"},
+        401: {"model": ErrorResponse, "description": "Invalid credentials"}
+    }
+)
+def login(
+    login_data: UserLogin,
+    auth_service: AuthService = Depends(get_auth_service)
+) -> Token:
+    """
+    Login and get access token.
+
+    Request Body:
+    - email: User's email
+    - password: User's password
+
+    Returns:
+    - JWT access token
+
+    Example:
+        POST /auth/login
+        {
+            "email": "user@example.com",
+            "password": "securepassword123"
+        }
+
+        Response:
+        {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "token_type": "bearer"
+        }
+    """
+    user = auth_service.authenticate_user(login_data)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = auth_service.create_user_token(user)
+    return token
+
+
+@app.get(
+    "/auth/me",
+    response_model=UserResponse,
+    tags=["authentication"],
+    responses={
+        200: {"description": "Current user information"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"}
+    }
+)
+def get_current_user_info(
+    current_user: User = Depends(get_current_active_user)
+) -> UserResponse:
+    """
+    Get current authenticated user information.
+
+    Requires:
+    - Valid JWT token in Authorization header
+
+    Returns:
+    - Current user object
+
+    Example:
+        GET /auth/me
+        Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+        Response:
+        {
+            "id": 1,
+            "email": "user@example.com",
+            "full_name": "John Doe",
+            "is_active": true,
+            "is_superuser": false
+        }
+    """
+    return UserResponse.model_validate(current_user)
+
+
+# ============================================
+# Course Endpoints
+# ============================================
 
 
 @app.get("/courses", tags=["courses"])
@@ -151,16 +317,22 @@ def get_class_by_id(class_id: int, db: Session = Depends(get_db)) -> dict:
     responses={
         201: {"description": "Rating created successfully"},
         400: {"model": ErrorResponse, "description": "Validation error"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
         404: {"model": ErrorResponse, "description": "Course not found"}
     }
 )
 def add_course_rating(
     course_id: int,
     rating_data: RatingRequest,
+    current_user: User = Depends(get_current_active_user),
     course_service: CourseService = Depends(get_course_service)
 ) -> RatingResponse:
     """
     Add a new rating to a course or update existing rating.
+
+    Security:
+    - Requires valid JWT authentication
+    - User can only create ratings for themselves
 
     Business Logic:
     - If user already has an active rating: UPDATE existing
@@ -168,20 +340,19 @@ def add_course_rating(
     - Returns HTTP 201 for new ratings
 
     Request Body:
-    - user_id: User ID (positive integer)
     - rating: Rating value (1-5)
 
     Example:
         POST /courses/1/ratings
+        Authorization: Bearer <token>
         {
-            "user_id": 42,
             "rating": 5
         }
     """
     try:
         result = course_service.add_course_rating(
             course_id=course_id,
-            user_id=rating_data.user_id,
+            user_id=current_user.id,  # ✅ Use authenticated user's ID
             rating=rating_data.rating
         )
         return RatingResponse(**result)
@@ -348,7 +519,8 @@ def get_user_course_rating(
     tags=["ratings"],
     responses={
         200: {"description": "Rating updated successfully"},
-        400: {"model": ErrorResponse, "description": "Validation error"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+        403: {"model": ErrorResponse, "description": "Cannot update another user's rating"},
         404: {"model": ErrorResponse, "description": "Rating not found"}
     }
 )
@@ -356,36 +528,40 @@ def update_course_rating(
     course_id: int,
     user_id: int,
     rating_data: RatingRequest,
+    current_user: User = Depends(get_current_active_user),
     course_service: CourseService = Depends(get_course_service)
 ) -> RatingResponse:
     """
     Update an existing course rating.
 
+    Security:
+    - Requires valid JWT authentication
+    - User can only update their own ratings
+
     Semantics: PUT = Update existing resource
     Fails with 404 if rating doesn't exist (use POST to create).
 
     Request Body:
-    - user_id: Must match path parameter (validation)
     - rating: New rating value (1-5)
 
     Example:
         PUT /courses/1/ratings/42
+        Authorization: Bearer <token>
         {
-            "user_id": 42,
             "rating": 3
         }
     """
-    # Validar que user_id del body coincide con user_id del path
-    if rating_data.user_id != user_id:
+    # ✅ Authorization check: user can only update their own rating
+    if user_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="user_id in body must match user_id in path"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot update another user's rating"
         )
 
     try:
         result = course_service.update_course_rating(
             course_id=course_id,
-            user_id=user_id,
+            user_id=current_user.id,  # ✅ Use authenticated user's ID
             rating=rating_data.rating
         )
         return RatingResponse(**result)
@@ -402,16 +578,23 @@ def update_course_rating(
     tags=["ratings"],
     responses={
         204: {"description": "Rating deleted successfully"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+        403: {"model": ErrorResponse, "description": "Cannot delete another user's rating"},
         404: {"model": ErrorResponse, "description": "Rating not found"}
     }
 )
 def delete_course_rating(
     course_id: int,
     user_id: int,
+    current_user: User = Depends(get_current_active_user),
     course_service: CourseService = Depends(get_course_service)
 ) -> None:
     """
     Delete (soft delete) a course rating.
+
+    Security:
+    - Requires valid JWT authentication
+    - User can only delete their own ratings
 
     Sets deleted_at timestamp, preserving data for historical analysis.
     Returns HTTP 204 No Content on success.
@@ -423,7 +606,14 @@ def delete_course_rating(
         Response:
         HTTP 204 No Content
     """
-    success = course_service.delete_course_rating(course_id, user_id)
+    # ✅ Authorization check: user can only delete their own rating
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete another user's rating"
+        )
+
+    success = course_service.delete_course_rating(course_id, current_user.id)
 
     if not success:
         raise HTTPException(
